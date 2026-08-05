@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>投資日誌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#10151f;
+    --panel:#161d2b;
+    --panel-2:#1c2438;
+    --line: rgba(201,161,92,0.22);
+    --paper:#ede7da;
+    --muted:#8b93a5;
+    --gold:#c9a15c;
+    --gold-soft: rgba(201,161,92,0.12);
+    --up:#d64545;      /* 漲＝紅（台股慣例） */
+    --down:#2f9e64;    /* 跌＝綠 */
+    --focus:#e8c98a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 500px at 10% -10%, rgba(201,161,92,0.07), transparent 60%),
+      var(--ink);
+    color:var(--paper);
+    font-family:'Noto Sans TC', sans-serif;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:1040px; margin:0 auto;}
+
+  /* ---------- Masthead ---------- */
+  .masthead{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    border-bottom:2px solid var(--gold);
+    padding-bottom:14px; margin-bottom:28px; gap:16px; flex-wrap:wrap;
+  }
+  .masthead h1{
+    font-family:'Noto Serif TC', serif; font-weight:900;
+    font-size:clamp(26px,4vw,38px); margin:0; letter-spacing:.04em;
+    color:var(--paper);
+  }
+  .masthead .sub{color:var(--gold); font-size:13px; letter-spacing:.18em; margin-top:4px;}
+  .date-field{display:flex; flex-direction:column; align-items:flex-end; gap:6px;}
+  .date-field label{font-size:12px; color:var(--muted); letter-spacing:.1em;}
+  .date-field input{
+    background:transparent; border:1px solid var(--line); color:var(--paper);
+    font-family:'IBM Plex Mono',monospace; font-size:15px; padding:6px 10px; border-radius:4px;
+  }
+
+  /* ---------- Section card ---------- */
+  .section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    margin-bottom:18px;
+    overflow:hidden;
+  }
+  .section-head{
+    display:flex; align-items:center; gap:10px;
+    padding:12px 18px;
+    background:var(--panel-2);
+    border-bottom:1px solid var(--line);
+  }
+  .section-head .tag{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink);
+    background:var(--gold); border-radius:3px; padding:2px 7px; font-weight:600;
+  }
+  .section-head h2{
+    font-family:'Noto Serif TC',serif; font-size:17px; margin:0; font-weight:700; color:var(--paper);
+  }
+  .section-body{padding:16px 18px 20px;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px 14px;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-size:12px; color:var(--muted);}
+  .field input, .field select{
+    background:var(--ink); border:1px solid var(--line); color:var(--paper);
+    font-family:'IBM Plex Mono',monospace; font-size:14px;
+    padding:8px 9px; border-radius:5px; width:100%;
+  }
+  .field input:focus, .field select:focus, textarea:focus{
+    outline:none; border-color:var(--focus); box-shadow:0 0 0 2px var(--gold-soft);
+  }
+  .field.readonly input{color:var(--gold); border-style:dashed;}
+  .field.wide{grid-column:1/-1;}
+  textarea{
+    width:100%; min-height:90px; background:var(--ink); border:1px solid var(--line);
+    color:var(--paper); font-family:'Noto Sans TC',sans-serif; font-size:14px;
+    padding:10px; border-radius:6px; resize:vertical; line-height:1.6;
+  }
+  .subgroup{margin-bottom:14px;}
+  .subgroup-title{font-size:12px; color:var(--gold); letter-spacing:.08em; margin-bottom:8px; font-weight:700;}
+
+  /* ---------- Buttons ---------- */
+  .actions{display:flex; gap:10px; margin:22px 0 40px; flex-wrap:wrap;}
+  button{
+    font-family:'Noto Sans TC',sans-serif; font-size:14px; font-weight:700;
+    padding:11px 22px; border-radius:6px; cursor:pointer; border:1px solid transparent;
+  }
+  .btn-primary{background:var(--gold); color:#1b1200; border-color:var(--gold);}
+  .btn-primary:hover{background:#dbb877;}
+  .btn-ghost{background:transparent; color:var(--paper); border-color:var(--line);}
+  .btn-ghost:hover{border-color:var(--gold); color:var(--gold);}
+  .btn-danger{background:transparent; color:var(--up); border-color:rgba(214,69,69,0.4);}
+  .btn-danger:hover{background:rgba(214,69,69,0.1);}
+
+  /* ---------- Ledger list ---------- */
+  .ledger-title{
+    font-family:'Noto Serif TC',serif; font-size:20px; margin:0 0 14px; color:var(--paper);
+    display:flex; align-items:center; gap:10px;
+  }
+  .ledger-title::after{content:""; flex:1; height:1px; background:var(--line);}
+  .entry-row{
+    display:flex; align-items:center; gap:14px;
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:12px 16px; margin-bottom:8px; cursor:pointer; transition:border-color .15s;
+  }
+  .entry-row:hover{border-color:var(--gold);}
+  .stamp{
+    width:44px; height:44px; border-radius:50%; border:2px solid var(--up);
+    color:var(--up); display:flex; align-items:center; justify-content:center;
+    font-family:'Noto Serif TC',serif; font-weight:900; font-size:11px; flex-shrink:0;
+    transform:rotate(-8deg); line-height:1.1; text-align:center;
+  }
+  .entry-info{flex:1; min-width:0;}
+  .entry-date{font-family:'IBM Plex Mono',monospace; font-size:14px; color:var(--paper);}
+  .entry-note{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:520px;}
+  .entry-taiex{font-family:'IBM Plex Mono',monospace; font-size:13px; text-align:right; flex-shrink:0;}
+  .up{color:var(--up);} .down{color:var(--down);} .flat{color:var(--muted);}
+  .empty-state{color:var(--muted); font-size:14px; padding:24px; text-align:center; border:1px dashed var(--line); border-radius:8px;}
+
+  .row-del{background:transparent; border:none; color:var(--muted); font-size:18px; padding:4px 8px;}
+  .row-del:hover{color:var(--up);}
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--gold); color:#1b1200; padding:10px 20px; border-radius:6px;
+    font-size:13px; font-weight:700; opacity:0; pointer-events:none; transition:opacity .25s;
+  }
+  .toast.show{opacity:1;}
+
+  input[type="file"]{display:none;}
+  @media (max-width:600px){
+    .entry-note{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <h1>大 事 記　投 資 日 誌</h1>
+      <div class="sub">DAILY MARKET LOG</div>
+    </div>
+    <div class="date-field">
+      <label>日期</label>
+      <input type="date" id="f-date">
+    </div>
+  </div>
+
+  <!-- 大盤 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">01</span><h2>大盤（加權指數）</h2></div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="field"><label>高</label><input type="number" step="0.01" id="taiex-high"></div>
+        <div class="field"><label>低</label><input type="number" step="0.01" id="taiex-low"></div>
+        <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="taiex-chg"></div>
+        <div class="field"><label>量（億）</label><input type="number" step="0.01" id="taiex-vol"></div>
+        <div class="field"><label>MACD DIF</label><input type="number" step="0.01" id="taiex-dif"></div>
+        <div class="field"><label>MACD</label><input type="number" step="0.01" id="taiex-macd"></div>
+        <div class="field"><label>KD - K</label><input type="number" step="0.1" id="taiex-k"></div>
+        <div class="field"><label>KD - D</label><input type="number" step="0.1" id="taiex-d"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 期指 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">02</span><h2>期指（台指期）</h2></div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="field"><label>高</label><input type="number" step="0.01" id="fut-high"></div>
+        <div class="field"><label>低</label><input type="number" step="0.01" id="fut-low"></div>
+        <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="fut-chg"></div>
+        <div class="field"><label>量</label><input type="number" step="0.01" id="fut-vol"></div>
+        <div class="field"><label>MACD</label><input type="number" step="0.01" id="fut-macd"></div>
+        <div class="field"><label>KD - K</label><input type="number" step="0.1" id="fut-k"></div>
+        <div class="field"><label>KD - D</label><input type="number" step="0.1" id="fut-d"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 三大法人 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">03</span><h2>三大法人</h2></div>
+    <div class="section-body">
+      <div class="subgroup">
+        <div class="subgroup-title">現貨買賣超（億）</div>
+        <div class="grid">
+          <div class="field"><label>投信</label><input type="number" step="0.01" id="inst-trust" oninput="calcTotals()"></div>
+          <div class="field"><label>外資</label><input type="number" step="0.01" id="inst-foreign" oninput="calcTotals()"></div>
+          <div class="field"><label>自營</label><input type="number" step="0.01" id="inst-dealer" oninput="calcTotals()"></div>
+          <div class="field readonly"><label>合計（自動加總）</label><input type="number" id="inst-total" readonly></div>
+        </div>
+      </div>
+      <div class="subgroup">
+        <div class="subgroup-title">期貨未平倉（口）</div>
+        <div class="grid">
+          <div class="field"><label>自營</label><input type="number" id="fi-dealer" oninput="calcTotals()"></div>
+          <div class="field"><label>外資</label><input type="number" id="fi-foreign" oninput="calcTotals()"></div>
+          <div class="field"><label>投信</label><input type="number" id="fi-trust" oninput="calcTotals()"></div>
+          <div class="field readonly"><label>三大合計（自動加總）</label><input type="number" id="fi-total" readonly></div>
+          <div class="field"><label>十大特定法人</label><input type="number" id="fi-top10"></div>
+          <div class="field"><label>五大交易人</label><input type="number" id="fi-top5"></div>
+          <div class="field"><label>總留倉</label><input type="number" id="fi-oi"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 融資融券 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">04</span><h2>融資融券</h2></div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="field"><label>融資增減</label><input type="number" step="0.01" id="margin-chg"></div>
+        <div class="field"><label>融資餘額</label><input type="number" step="0.01" id="margin-bal"></div>
+        <div class="field"><label>融券增減</label><input type="number" step="0.01" id="short-chg"></div>
+        <div class="field"><label>融券餘額</label><input type="number" step="0.01" id="short-bal"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 個人持股 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">05</span><h2>個人持股</h2></div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="field wide"><label>目前總部位（金額或資金水位 %，自由填寫）</label><input type="text" id="my-position"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 國際指數 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">06</span><h2>國際指數</h2></div>
+    <div class="section-body">
+      <div class="subgroup">
+        <div class="subgroup-title">道瓊</div>
+        <div class="grid">
+          <div class="field"><label>點數</label><input type="number" step="0.01" id="dow-pts"></div>
+          <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="dow-chg"></div>
+          <div class="field"><label>漲跌幅 %</label><input type="number" step="0.01" id="dow-pct"></div>
+        </div>
+      </div>
+      <div class="subgroup">
+        <div class="subgroup-title">那斯達克</div>
+        <div class="grid">
+          <div class="field"><label>點數</label><input type="number" step="0.01" id="nas-pts"></div>
+          <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="nas-chg"></div>
+          <div class="field"><label>漲跌幅 %</label><input type="number" step="0.01" id="nas-pct"></div>
+        </div>
+      </div>
+      <div class="subgroup">
+        <div class="subgroup-title">S&amp;P 500</div>
+        <div class="grid">
+          <div class="field"><label>點數</label><input type="number" step="0.01" id="sp-pts"></div>
+          <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="sp-chg"></div>
+          <div class="field"><label>漲跌幅 %</label><input type="number" step="0.01" id="sp-pct"></div>
+        </div>
+      </div>
+      <div class="subgroup">
+        <div class="subgroup-title">費半（SOX）</div>
+        <div class="grid">
+          <div class="field"><label>點數</label><input type="number" step="0.01" id="sox-pts"></div>
+          <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="sox-chg"></div>
+          <div class="field"><label>漲跌幅 %</label><input type="number" step="0.01" id="sox-pct"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 研判心得 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">07</span><h2>研判心得</h2></div>
+    <div class="section-body">
+      <textarea id="notes" placeholder="今天的判斷、明天的策略..."></textarea>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-primary" onclick="saveEntry()">儲存今日日誌</button>
+    <button class="btn-ghost" onclick="clearForm()">清空表單</button>
+    <button class="btn-ghost" onclick="document.getElementById('import-file').click()">匯入 JSON</button>
+    <button class="btn-ghost" onclick="exportAll()">匯出全部 JSON</button>
+    <input type="file" id="import-file" accept="application/json" onchange="importFile(event)">
+  </div>
+
+  <h2 class="ledger-title">歷史日誌</h2>
+  <div id="ledger-list"></div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'investment-journal-entries-v1';
+let editingId = null;
+
+const FIELD_IDS = [
+  'taiex-high','taiex-low','taiex-chg','taiex-vol','taiex-dif','taiex-macd','taiex-k','taiex-d',
+  'fut-high','fut-low','fut-chg','fut-vol','fut-macd','fut-k','fut-d',
+  'inst-trust','inst-foreign','inst-dealer','inst-total',
+  'fi-dealer','fi-foreign','fi-trust','fi-total','fi-top10','fi-top5','fi-oi',
+  'margin-chg','margin-bal','short-chg','short-bal',
+  'my-position',
+  'dow-pts','dow-chg','dow-pct','nas-pts','nas-chg','nas-pct',
+  'sp-pts','sp-chg','sp-pct','sox-pts','sox-chg','sox-pct',
+  'notes'
+];
+
+function loadEntries(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveEntries(list){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+function calcTotals(){
+  const t = parseFloat(document.getElementById('inst-trust').value)||0;
+  const f = parseFloat(document.getElementById('inst-foreign').value)||0;
+  const de = parseFloat(document.getElementById('inst-dealer').value)||0;
+  document.getElementById('inst-total').value = (t+f+de).toFixed(2);
+
+  const fd = parseFloat(document.getElementById('fi-dealer').value)||0;
+  const ff = parseFloat(document.getElementById('fi-foreign').value)||0;
+  const ft = parseFloat(document.getElementById('fi-trust').value)||0;
+  document.getElementById('fi-total').value = (fd+ff+ft).toFixed(0);
+}
+function collectForm(){
+  const data = { id: editingId || (Date.now()+''), date: document.getElementById('f-date').value };
+  FIELD_IDS.forEach(id => data[id] = document.getElementById(id).value);
+  return data;
+}
+function fillForm(data){
+  document.getElementById('f-date').value = data.date || '';
+  FIELD_IDS.forEach(id => { document.getElementById(id).value = data[id] ?? ''; });
+}
+function clearForm(){
+  editingId = null;
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  FIELD_IDS.forEach(id => document.getElementById(id).value = '');
+}
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 1800);
+}
+function saveEntry(){
+  if(!document.getElementById('f-date').value){
+    showToast('請先填日期'); return;
+  }
+  const data = collectForm();
+  const list = loadEntries();
+  const idx = list.findIndex(e => e.id === data.id);
+  if(idx >= 0) list[idx] = data; else list.unshift(data);
+  list.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  saveEntries(list);
+  editingId = null;
+  showToast('已儲存');
+  renderLedger();
+}
+function deleteEntry(id, ev){
+  ev.stopPropagation();
+  if(!confirm('確定要刪除這筆日誌嗎？')) return;
+  const list = loadEntries().filter(e => e.id !== id);
+  saveEntries(list);
+  renderLedger();
+}
+function editEntry(id){
+  const list = loadEntries();
+  const data = list.find(e => e.id === id);
+  if(!data) return;
+  editingId = id;
+  fillForm(data);
+  window.scrollTo({top:0, behavior:'smooth'});
+  showToast('已載入，編輯後按「儲存今日日誌」更新');
+}
+function trendClass(v){
+  const n = parseFloat(v);
+  if(isNaN(n) || n===0) return 'flat';
+  return n>0 ? 'up' : 'down';
+}
+function fmtSigned(v){
+  const n = parseFloat(v);
+  if(isNaN(n)) return '--';
+  return (n>0?'+':'') + n;
+}
+function renderLedger(){
+  const list = loadEntries();
+  const box = document.getElementById('ledger-list');
+  if(list.length === 0){
+    box.innerHTML = '<div class="empty-state">還沒有日誌，填好上面的表單後按「儲存今日日誌」開始記錄。</div>';
+    return;
+  }
+  box.innerHTML = list.map(e => {
+    const dparts = (e.date||'').split('-');
+    const stampTxt = dparts.length===3 ? dparts[1]+'/'+dparts[2] : '--';
+    const chg = e['taiex-chg'];
+    const note = (e.notes||'').replace(/</g,'&lt;');
+    return `<div class="entry-row" onclick="editEntry('${e.id}')">
+      <div class="stamp">${stampTxt}</div>
+      <div class="entry-info">
+        <div class="entry-date">${e.date || '未填日期'}</div>
+        <div class="entry-note">${note || '（無心得）'}</div>
+      </div>
+      <div class="entry-taiex ${trendClass(chg)}">
+        大盤 ${fmtSigned(chg)}
+      </div>
+      <button class="row-del" onclick="deleteEntry('${e.id}', event)" title="刪除">✕</button>
+    </div>`;
+  }).join('');
+}
+function exportAll(){
+  const list = loadEntries();
+  const blob = new Blob([JSON.stringify(list, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'investment-journal-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('已匯出備份檔');
+}
+function importFile(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const incoming = JSON.parse(e.target.result);
+      if(!Array.isArray(incoming)) throw new Error('格式錯誤');
+      const existing = loadEntries();
+      const map = {};
+      existing.forEach(x => map[x.id] = x);
+      incoming.forEach(x => map[x.id] = x);
+      const merged = Object.values(map).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+      saveEntries(merged);
+      renderLedger();
+      showToast('匯入完成，共 ' + merged.length + ' 筆');
+    }catch(err){
+      showToast('匯入失敗：檔案格式不對');
+    }
+  };
+  reader.readAsText(file);
+  ev.target.value = '';
+}
+
+// init
+clearForm();
+renderLedger();
+</script>
+</body>
+</html>
