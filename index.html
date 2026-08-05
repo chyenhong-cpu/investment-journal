@@ -147,6 +147,26 @@
   @media (max-width:600px){
     .entry-note{display:none;}
   }
+
+  /* ---------- Sync panel ---------- */
+  .sync-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    margin-bottom:24px; overflow:hidden;
+  }
+  .sync-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:12px 18px; background:var(--panel-2); border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .sync-head h2{font-family:'Noto Serif TC',serif; font-size:16px; margin:0; font-weight:700;}
+  .sync-status{font-size:12px; color:var(--muted); font-family:'IBM Plex Mono',monospace;}
+  .sync-status.ok{color:var(--down);}
+  .sync-status.err{color:var(--up);}
+  .sync-body{padding:16px 18px 20px; display:none;}
+  .sync-body.open{display:block;}
+  .sync-note{font-size:12px; color:var(--muted); line-height:1.7; margin:0 0 14px;}
+  .sync-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center;}
+  .switch-row{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--paper); margin-top:12px;}
 </style>
 </head>
 <body>
@@ -163,11 +183,40 @@
     </div>
   </div>
 
+  <!-- 雲端同步 -->
+  <div class="sync-panel">
+    <div class="sync-head" onclick="document.getElementById('sync-body').classList.toggle('open')">
+      <h2>☁ 雲端同步設定</h2>
+      <span class="sync-status" id="sync-status">尚未設定</span>
+    </div>
+    <div class="sync-body" id="sync-body">
+      <p class="sync-note">
+        資料會存進你自己 GitHub 上的一個「私有 repo」，其他裝置填一樣的設定就能讀到同一份日誌。
+        Token 只會存在這台裝置的瀏覽器裡，只會傳給 api.github.com，不會傳去別的地方。
+      </p>
+      <div class="grid">
+        <div class="field"><label>GitHub 帳號</label><input type="text" id="sync-owner" placeholder="例如 chyenhong-cpu"></div>
+        <div class="field"><label>資料用 repo 名稱</label><input type="text" id="sync-repo" placeholder="例如 investment-journal-data"></div>
+        <div class="field wide"><label>Personal Access Token（fine-grained，僅此 repo 的 Contents 讀寫）</label><input type="password" id="sync-token" placeholder="github_pat_..."></div>
+      </div>
+      <div class="switch-row">
+        <input type="checkbox" id="sync-auto">
+        <label for="sync-auto">每次儲存日誌後自動推送到雲端</label>
+      </div>
+      <div class="sync-actions">
+        <button class="btn-primary" onclick="saveSyncConfig()">儲存設定</button>
+        <button class="btn-ghost" onclick="pullFromCloud(false)">從雲端拉回</button>
+        <button class="btn-ghost" onclick="pushToCloud(false)">推送到雲端</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 大盤 -->
   <div class="section">
     <div class="section-head"><span class="tag">01</span><h2>大盤（加權指數）</h2></div>
     <div class="section-body">
       <div class="grid">
+        <div class="field"><label>收盤</label><input type="number" step="0.01" id="taiex-close"></div>
         <div class="field"><label>高</label><input type="number" step="0.01" id="taiex-high"></div>
         <div class="field"><label>低</label><input type="number" step="0.01" id="taiex-low"></div>
         <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="taiex-chg"></div>
@@ -185,6 +234,7 @@
     <div class="section-head"><span class="tag">02</span><h2>期指（台指期）</h2></div>
     <div class="section-body">
       <div class="grid">
+        <div class="field"><label>收盤</label><input type="number" step="0.01" id="fut-close"></div>
         <div class="field"><label>高</label><input type="number" step="0.01" id="fut-high"></div>
         <div class="field"><label>低</label><input type="number" step="0.01" id="fut-low"></div>
         <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="fut-chg"></div>
@@ -311,11 +361,13 @@
 
 <script>
 const STORAGE_KEY = 'investment-journal-entries-v1';
+const SYNC_CONFIG_KEY = 'investment-journal-sync-config-v1';
+const DATA_FILE = 'data.json';
 let editingId = null;
 
 const FIELD_IDS = [
-  'taiex-high','taiex-low','taiex-chg','taiex-vol','taiex-dif','taiex-macd','taiex-k','taiex-d',
-  'fut-high','fut-low','fut-chg','fut-vol','fut-macd','fut-k','fut-d',
+  'taiex-close','taiex-high','taiex-low','taiex-chg','taiex-vol','taiex-dif','taiex-macd','taiex-k','taiex-d',
+  'fut-close','fut-high','fut-low','fut-chg','fut-vol','fut-macd','fut-k','fut-d',
   'inst-trust','inst-foreign','inst-dealer','inst-total',
   'fi-dealer','fi-foreign','fi-trust','fi-total','fi-top10','fi-top5','fi-oi',
   'margin-chg','margin-bal','short-chg','short-bal',
@@ -346,7 +398,11 @@ function calcTotals(){
   document.getElementById('fi-total').value = (fd+ff+ft).toFixed(0);
 }
 function collectForm(){
-  const data = { id: editingId || (Date.now()+''), date: document.getElementById('f-date').value };
+  const data = {
+    id: editingId || (Date.now()+''),
+    date: document.getElementById('f-date').value,
+    updatedAt: Date.now()
+  };
   FIELD_IDS.forEach(id => data[id] = document.getElementById(id).value);
   return data;
 }
@@ -378,6 +434,10 @@ function saveEntry(){
   editingId = null;
   showToast('已儲存');
   renderLedger();
+  const cfg = loadConfig();
+  if(cfg && cfg.autoSync){
+    pushToCloud(true);
+  }
 }
 function deleteEntry(id, ev){
   ev.stopPropagation();
@@ -465,9 +525,143 @@ function importFile(ev){
   ev.target.value = '';
 }
 
+/* ---------------- 雲端同步（GitHub Contents API） ---------------- */
+function loadConfig(){
+  try{
+    const raw = localStorage.getItem(SYNC_CONFIG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function saveConfigObj(cfg){
+  localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(cfg));
+}
+function saveSyncConfig(){
+  const cfg = {
+    owner: document.getElementById('sync-owner').value.trim(),
+    repo: document.getElementById('sync-repo').value.trim(),
+    token: document.getElementById('sync-token').value.trim(),
+    autoSync: document.getElementById('sync-auto').checked
+  };
+  if(!cfg.owner || !cfg.repo || !cfg.token){
+    setSyncStatus('請把帳號、repo、token 都填好', 'err');
+    return;
+  }
+  saveConfigObj(cfg);
+  setSyncStatus('設定已儲存，正在測試連線...', '');
+  pullFromCloud(false);
+}
+function fillSyncForm(cfg){
+  if(!cfg) return;
+  document.getElementById('sync-owner').value = cfg.owner || '';
+  document.getElementById('sync-repo').value = cfg.repo || '';
+  document.getElementById('sync-token').value = cfg.token || '';
+  document.getElementById('sync-auto').checked = !!cfg.autoSync;
+}
+function setSyncStatus(msg, cls){
+  const el = document.getElementById('sync-status');
+  el.textContent = msg;
+  el.className = 'sync-status' + (cls ? ' ' + cls : '');
+}
+function utf8ToBase64(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function base64ToUtf8(str){
+  return decodeURIComponent(escape(atob(str.replace(/\n/g,''))));
+}
+function apiUrl(cfg){
+  return `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${DATA_FILE}`;
+}
+async function ghGetFile(cfg){
+  const res = await fetch(apiUrl(cfg), {
+    headers: {
+      'Authorization': 'Bearer ' + cfg.token,
+      'Accept': 'application/vnd.github+json'
+    }
+  });
+  if(res.status === 404) return { exists:false, sha:null, entries:[] };
+  if(!res.ok){
+    const body = await res.text();
+    throw new Error('HTTP ' + res.status + ': ' + body.slice(0,200));
+  }
+  const json = await res.json();
+  let entries = [];
+  try{ entries = JSON.parse(base64ToUtf8(json.content)); }catch(e){ entries = []; }
+  return { exists:true, sha: json.sha, entries: Array.isArray(entries) ? entries : [] };
+}
+async function ghPutFile(cfg, entries, sha){
+  const body = {
+    message: '投資日誌同步 ' + new Date().toISOString(),
+    content: utf8ToBase64(JSON.stringify(entries, null, 2))
+  };
+  if(sha) body.sha = sha;
+  const res = await fetch(apiUrl(cfg), {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'Bearer ' + cfg.token,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok){
+    const errBody = await res.text();
+    throw new Error('HTTP ' + res.status + ': ' + errBody.slice(0,200));
+  }
+  return res.json();
+}
+function mergeByUpdatedAt(a, b){
+  const map = {};
+  a.forEach(e => map[e.id] = e);
+  b.forEach(e => {
+    const cur = map[e.id];
+    if(!cur || (e.updatedAt||0) >= (cur.updatedAt||0)) map[e.id] = e;
+  });
+  return Object.values(map).sort((x,y) => (y.date||'').localeCompare(x.date||''));
+}
+async function pullFromCloud(silent){
+  const cfg = loadConfig();
+  if(!cfg){ if(!silent) setSyncStatus('請先儲存同步設定', 'err'); return; }
+  setSyncStatus('同步中...', '');
+  try{
+    const remote = await ghGetFile(cfg);
+    const local = loadEntries();
+    const merged = mergeByUpdatedAt(local, remote.entries);
+    saveEntries(merged);
+    renderLedger();
+    setSyncStatus('已同步（' + new Date().toLocaleTimeString() + '）', 'ok');
+    if(!silent) showToast('雲端資料已拉回並合併');
+  }catch(err){
+    setSyncStatus('連線失敗：' + err.message, 'err');
+    if(!silent) showToast('同步失敗，請檢查帳號/repo/token');
+  }
+}
+async function pushToCloud(silent){
+  const cfg = loadConfig();
+  if(!cfg){ if(!silent) setSyncStatus('請先儲存同步設定', 'err'); return; }
+  setSyncStatus('推送中...', '');
+  try{
+    const remote = await ghGetFile(cfg);
+    const local = loadEntries();
+    const merged = mergeByUpdatedAt(local, remote.entries);
+    saveEntries(merged);
+    await ghPutFile(cfg, merged, remote.exists ? remote.sha : null);
+    renderLedger();
+    setSyncStatus('已同步（' + new Date().toLocaleTimeString() + '）', 'ok');
+    if(!silent) showToast('已推送到雲端');
+  }catch(err){
+    setSyncStatus('推送失敗：' + err.message, 'err');
+    if(!silent) showToast('推送失敗，請檢查帳號/repo/token');
+  }
+}
+
 // init
 clearForm();
 renderLedger();
+const _cfg = loadConfig();
+if(_cfg){
+  fillSyncForm(_cfg);
+  pullFromCloud(true);
+}
 </script>
 </body>
 </html>
