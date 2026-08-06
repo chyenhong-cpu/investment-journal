@@ -292,7 +292,8 @@
     <div class="section-head"><span class="tag">05</span><h2>個人持股</h2></div>
     <div class="section-body">
       <div class="grid">
-        <div class="field wide"><label>目前總部位（金額或資金水位 %，自由填寫）</label><input type="text" id="my-position"></div>
+        <div class="field"><label>目前總部位（市值，數字）</label><input type="number" step="1" id="my-position"></div>
+        <div class="field"><label>出入金增減（入金填正數／出金填負數）</label><input type="number" step="1" id="my-cashflow"></div>
       </div>
     </div>
   </div>
@@ -352,6 +353,23 @@
     <input type="file" id="import-file" accept="application/json" onchange="importFile(event)">
   </div>
 
+  <h2 class="ledger-title">績效總覽</h2>
+  <div class="section" style="margin-bottom:24px;">
+    <div class="section-body">
+      <div class="grid" id="perf-summary">
+        <div class="field readonly"><label>起始（日期／部位）</label><input type="text" id="perf-start" readonly></div>
+        <div class="field readonly"><label>最新（日期／部位）</label><input type="text" id="perf-end" readonly></div>
+        <div class="field readonly"><label>期間累計出入金</label><input type="text" id="perf-cashflow" readonly></div>
+        <div class="field readonly"><label>估算市場損益</label><input type="text" id="perf-pnl" readonly></div>
+        <div class="field readonly"><label>估算報酬率</label><input type="text" id="perf-return" readonly></div>
+        <div class="field readonly"><label>估算年化報酬率</label><input type="text" id="perf-annual" readonly></div>
+      </div>
+      <p class="sync-note" style="margin-top:12px; margin-bottom:0;">
+        用 Modified Dietz 方式估算：把每筆「出入金」依照它離最新日期還剩多少天數加權，盡量把資金進出的影響從報酬率裡剔除。日誌筆數越多、出入金記錄越完整，這個估算會越準；只有一兩筆資料時僅供參考。
+      </p>
+    </div>
+  </div>
+
   <h2 class="ledger-title">歷史日誌</h2>
   <div id="ledger-list"></div>
 
@@ -371,7 +389,7 @@ const FIELD_IDS = [
   'inst-trust','inst-foreign','inst-dealer','inst-total',
   'fi-dealer','fi-foreign','fi-trust','fi-total','fi-top10','fi-top5','fi-oi',
   'margin-chg','margin-bal','short-chg','short-bal',
-  'my-position',
+  'my-position','my-cashflow',
   'dow-pts','dow-chg','dow-pct','nas-pts','nas-chg','nas-pct',
   'sp-pts','sp-chg','sp-pct','sox-pts','sox-chg','sox-pct',
   'notes'
@@ -434,6 +452,7 @@ function saveEntry(){
   editingId = null;
   showToast('已儲存');
   renderLedger();
+  renderPerformance();
   const cfg = loadConfig();
   if(cfg && cfg.autoSync){
     pushToCloud(true);
@@ -450,6 +469,7 @@ function deleteEntry(id, ev){
   }
   saveEntries(list);
   renderLedger();
+  renderPerformance();
   const cfg = loadConfig();
   if(cfg && cfg.autoSync){
     pushToCloud(true);
@@ -473,6 +493,59 @@ function fmtSigned(v){
   const n = parseFloat(v);
   if(isNaN(n)) return '--';
   return (n>0?'+':'') + n;
+}
+function fmtMoney(n){
+  if(n===null || n===undefined || isNaN(n)) return '--';
+  const sign = n>0 ? '+' : '';
+  return sign + Math.round(n).toLocaleString();
+}
+function renderPerformance(){
+  const entries = loadEntries()
+    .filter(e => !e.deleted && e.date && e['my-position'] !== '' && e['my-position'] !== undefined && !isNaN(parseFloat(e['my-position'])))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  const setBox = (id, val) => document.getElementById(id).value = val;
+
+  if(entries.length < 2){
+    setBox('perf-start', entries.length ? entries[0].date + ' / ' + parseFloat(entries[0]['my-position']).toLocaleString() : '--');
+    setBox('perf-end', '--');
+    setBox('perf-cashflow', '--');
+    setBox('perf-pnl', '--');
+    setBox('perf-return', '資料不足（需至少 2 筆不同日期的總部位）');
+    setBox('perf-annual', '--');
+    return;
+  }
+
+  const first = entries[0];
+  const last = entries[entries.length-1];
+  const V0 = parseFloat(first['my-position']);
+  const V1 = parseFloat(last['my-position']);
+  const d0 = new Date(first.date);
+  const d1 = new Date(last.date);
+  const totalDays = Math.max(1, Math.round((d1 - d0) / 86400000));
+
+  let netCF = 0;
+  let weightedCF = 0;
+  entries.forEach(e => {
+    const cf = parseFloat(e['my-cashflow']) || 0;
+    if(cf === 0) return;
+    netCF += cf;
+    const days = Math.round((new Date(e.date) - d0) / 86400000);
+    const weight = (totalDays - days) / totalDays;
+    weightedCF += cf * weight;
+  });
+
+  const denom = V0 + weightedCF;
+  const marketPnl = V1 - V0 - netCF;
+  const ret = denom !== 0 ? marketPnl / denom : null;
+  const annual = (ret !== null && (1+ret) > 0) ? Math.pow(1+ret, 365/totalDays) - 1 : null;
+
+  setBox('perf-start', first.date + ' / ' + V0.toLocaleString());
+  setBox('perf-end', last.date + ' / ' + V1.toLocaleString());
+  setBox('perf-cashflow', fmtMoney(netCF));
+  setBox('perf-pnl', fmtMoney(marketPnl));
+  setBox('perf-return', ret !== null ? (ret*100).toFixed(2) + '%' : '無法估算');
+  setBox('perf-annual', annual !== null ? (annual*100).toFixed(2) + '%（' + totalDays + ' 天）' : '無法估算');
 }
 function renderLedger(){
   const list = loadEntries().filter(e => !e.deleted);
@@ -525,6 +598,7 @@ function importFile(ev){
       const merged = Object.values(map).sort((a,b) => (b.date||'').localeCompare(a.date||''));
       saveEntries(merged);
       renderLedger();
+  renderPerformance();
       showToast('匯入完成，共 ' + merged.length + ' 筆');
     }catch(err){
       showToast('匯入失敗：檔案格式不對');
@@ -637,6 +711,7 @@ async function pullFromCloud(silent){
     const merged = mergeByUpdatedAt(local, remote.entries);
     saveEntries(merged);
     renderLedger();
+  renderPerformance();
     setSyncStatus('已同步（' + new Date().toLocaleTimeString() + '）', 'ok');
     if(!silent) showToast('雲端資料已拉回並合併');
   }catch(err){
@@ -655,6 +730,7 @@ async function pushToCloud(silent){
     saveEntries(merged);
     await ghPutFile(cfg, merged, remote.exists ? remote.sha : null);
     renderLedger();
+  renderPerformance();
     setSyncStatus('已同步（' + new Date().toLocaleTimeString() + '）', 'ok');
     if(!silent) showToast('已推送到雲端');
   }catch(err){
@@ -666,6 +742,7 @@ async function pushToCloud(silent){
 // init
 clearForm();
 renderLedger();
+renderPerformance();
 const _cfg = loadConfig();
 if(_cfg){
   fillSyncForm(_cfg);
