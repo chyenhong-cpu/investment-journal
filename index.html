@@ -442,9 +442,18 @@ function saveEntry(){
 function deleteEntry(id, ev){
   ev.stopPropagation();
   if(!confirm('確定要刪除這筆日誌嗎？')) return;
-  const list = loadEntries().filter(e => e.id !== id);
+  const list = loadEntries();
+  const idx = list.findIndex(e => e.id === id);
+  if(idx >= 0){
+    list[idx].deleted = true;
+    list[idx].updatedAt = Date.now();
+  }
   saveEntries(list);
   renderLedger();
+  const cfg = loadConfig();
+  if(cfg && cfg.autoSync){
+    pushToCloud(true);
+  }
 }
 function editEntry(id){
   const list = loadEntries();
@@ -466,7 +475,7 @@ function fmtSigned(v){
   return (n>0?'+':'') + n;
 }
 function renderLedger(){
-  const list = loadEntries();
+  const list = loadEntries().filter(e => !e.deleted);
   const box = document.getElementById('ledger-list');
   if(list.length === 0){
     box.innerHTML = '<div class="empty-state">還沒有日誌，填好上面的表單後按「儲存今日日誌」開始記錄。</div>';
