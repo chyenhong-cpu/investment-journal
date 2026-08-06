@@ -356,6 +356,13 @@
   <h2 class="ledger-title">績效總覽</h2>
   <div class="section" style="margin-bottom:24px;">
     <div class="section-body">
+      <div class="grid" style="margin-bottom:16px;">
+        <div class="field"><label>區間起（留空＝全部）</label><input type="date" id="perf-range-start" onchange="renderPerformance()"></div>
+        <div class="field"><label>區間迄（留空＝全部）</label><input type="date" id="perf-range-end" onchange="renderPerformance()"></div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="btn-ghost" onclick="document.getElementById('perf-range-start').value='';document.getElementById('perf-range-end').value='';renderPerformance();">清除區間（看全部）</button>
+        </div>
+      </div>
       <div class="grid" id="perf-summary">
         <div class="field readonly"><label>起始（日期／部位）</label><input type="text" id="perf-start" readonly></div>
         <div class="field readonly"><label>最新（日期／部位）</label><input type="text" id="perf-end" readonly></div>
@@ -365,7 +372,7 @@
         <div class="field readonly"><label>估算年化報酬率</label><input type="text" id="perf-annual" readonly></div>
       </div>
       <p class="sync-note" style="margin-top:12px; margin-bottom:0;">
-        用 Modified Dietz 方式估算：把每筆「出入金」依照它離最新日期還剩多少天數加權，盡量把資金進出的影響從報酬率裡剔除。日誌筆數越多、出入金記錄越完整，這個估算會越準；只有一兩筆資料時僅供參考。
+        用 Modified Dietz 方式估算：把每筆「出入金」依照它離區間終點還剩多少天數加權，盡量把資金進出的影響從報酬率裡剔除。日誌筆數越多、出入金記錄越完整，這個估算會越準；只有一兩筆資料時僅供參考。選了區間，就只會用區間內（含頭尾）的日誌來算。
       </p>
     </div>
   </div>
@@ -500,8 +507,12 @@ function fmtMoney(n){
   return sign + Math.round(n).toLocaleString();
 }
 function renderPerformance(){
+  const rangeStart = document.getElementById('perf-range-start').value;
+  const rangeEnd = document.getElementById('perf-range-end').value;
+
   const entries = loadEntries()
     .filter(e => !e.deleted && e.date && e['my-position'] !== '' && e['my-position'] !== undefined && !isNaN(parseFloat(e['my-position'])))
+    .filter(e => (!rangeStart || e.date >= rangeStart) && (!rangeEnd || e.date <= rangeEnd))
     .sort((a,b) => a.date.localeCompare(b.date));
 
   const setBox = (id, val) => document.getElementById(id).value = val;
