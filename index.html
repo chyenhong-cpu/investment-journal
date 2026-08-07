@@ -216,10 +216,11 @@
     <div class="section-head"><span class="tag">01</span><h2>大盤（加權指數）</h2></div>
     <div class="section-body">
       <div class="grid">
-        <div class="field"><label>收盤</label><input type="number" step="0.01" id="taiex-close"></div>
+        <div class="field"><label>收盤</label><input type="number" step="0.01" id="taiex-close" oninput="calcTotals()"></div>
         <div class="field"><label>高</label><input type="number" step="0.01" id="taiex-high"></div>
         <div class="field"><label>低</label><input type="number" step="0.01" id="taiex-low"></div>
-        <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="taiex-chg"></div>
+        <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="taiex-chg" oninput="calcTotals()"></div>
+        <div class="field readonly"><label>漲跌幅 %（自動計算）</label><input type="text" id="taiex-pct" readonly></div>
         <div class="field"><label>量（億）</label><input type="number" step="0.01" id="taiex-vol"></div>
         <div class="field"><label>MACD DIF</label><input type="number" step="0.01" id="taiex-dif"></div>
         <div class="field"><label>MACD</label><input type="number" step="0.01" id="taiex-macd"></div>
@@ -246,9 +247,21 @@
     </div>
   </div>
 
+  <!-- 櫃買指數 -->
+  <div class="section">
+    <div class="section-head"><span class="tag">03</span><h2>櫃買指數</h2></div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="field"><label>收盤</label><input type="number" step="0.01" id="tpex-close" oninput="calcTotals()"></div>
+        <div class="field"><label>漲跌數</label><input type="number" step="0.01" id="tpex-chg" oninput="calcTotals()"></div>
+        <div class="field readonly"><label>漲跌幅 %（自動計算）</label><input type="text" id="tpex-pct" readonly></div>
+      </div>
+    </div>
+  </div>
+
   <!-- 三大法人 -->
   <div class="section">
-    <div class="section-head"><span class="tag">03</span><h2>三大法人</h2></div>
+    <div class="section-head"><span class="tag">04</span><h2>三大法人</h2></div>
     <div class="section-body">
       <div class="subgroup">
         <div class="subgroup-title">現貨買賣超（億）</div>
@@ -276,7 +289,7 @@
 
   <!-- 融資融券 -->
   <div class="section">
-    <div class="section-head"><span class="tag">04</span><h2>融資融券</h2></div>
+    <div class="section-head"><span class="tag">05</span><h2>融資融券</h2></div>
     <div class="section-body">
       <div class="grid">
         <div class="field"><label>融資增減</label><input type="number" step="0.01" id="margin-chg"></div>
@@ -289,7 +302,7 @@
 
   <!-- 個人持股 -->
   <div class="section">
-    <div class="section-head"><span class="tag">05</span><h2>個人持股</h2></div>
+    <div class="section-head"><span class="tag">06</span><h2>個人持股</h2></div>
     <div class="section-body">
       <div class="grid">
         <div class="field"><label>目前總部位（市值，數字）</label><input type="number" step="1" id="my-position"></div>
@@ -300,7 +313,7 @@
 
   <!-- 國際指數 -->
   <div class="section">
-    <div class="section-head"><span class="tag">06</span><h2>國際指數</h2></div>
+    <div class="section-head"><span class="tag">07</span><h2>國際指數</h2></div>
     <div class="section-body">
       <div class="subgroup">
         <div class="subgroup-title">道瓊</div>
@@ -339,7 +352,7 @@
 
   <!-- 研判心得 -->
   <div class="section">
-    <div class="section-head"><span class="tag">07</span><h2>研判心得</h2></div>
+    <div class="section-head"><span class="tag">08</span><h2>研判心得</h2></div>
     <div class="section-body">
       <textarea id="notes" placeholder="今天的判斷、明天的策略..."></textarea>
     </div>
@@ -391,8 +404,9 @@ const DATA_FILE = 'data.json';
 let editingId = null;
 
 const FIELD_IDS = [
-  'taiex-close','taiex-high','taiex-low','taiex-chg','taiex-vol','taiex-dif','taiex-macd','taiex-k','taiex-d',
+  'taiex-close','taiex-high','taiex-low','taiex-chg','taiex-pct','taiex-vol','taiex-dif','taiex-macd','taiex-k','taiex-d',
   'fut-close','fut-high','fut-low','fut-chg','fut-vol','fut-macd','fut-k','fut-d',
+  'tpex-close','tpex-chg','tpex-pct',
   'inst-trust','inst-foreign','inst-dealer','inst-total',
   'fi-dealer','fi-foreign','fi-trust','fi-total','fi-top10','fi-top5','fi-oi',
   'margin-chg','margin-bal','short-chg','short-bal',
@@ -411,6 +425,15 @@ function loadEntries(){
 function saveEntries(list){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 }
+function calcPct(closeId, chgId, pctId){
+  const close = parseFloat(document.getElementById(closeId).value);
+  const chg = parseFloat(document.getElementById(chgId).value);
+  const pctEl = document.getElementById(pctId);
+  if(isNaN(close) || isNaN(chg)){ pctEl.value=''; return; }
+  const prevClose = close - chg;
+  if(prevClose === 0){ pctEl.value=''; return; }
+  pctEl.value = (chg/prevClose*100).toFixed(2) + '%';
+}
 function calcTotals(){
   const t = parseFloat(document.getElementById('inst-trust').value)||0;
   const f = parseFloat(document.getElementById('inst-foreign').value)||0;
@@ -421,6 +444,9 @@ function calcTotals(){
   const ff = parseFloat(document.getElementById('fi-foreign').value)||0;
   const ft = parseFloat(document.getElementById('fi-trust').value)||0;
   document.getElementById('fi-total').value = (fd+ff+ft).toFixed(0);
+
+  calcPct('taiex-close','taiex-chg','taiex-pct');
+  calcPct('tpex-close','tpex-chg','tpex-pct');
 }
 function collectForm(){
   const data = {
@@ -434,6 +460,7 @@ function collectForm(){
 function fillForm(data){
   document.getElementById('f-date').value = data.date || '';
   FIELD_IDS.forEach(id => { document.getElementById(id).value = data[id] ?? ''; });
+  calcTotals();
 }
 function clearForm(){
   editingId = null;
